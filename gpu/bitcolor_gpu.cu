@@ -665,9 +665,22 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    if (argc == 2 && std::string(argv[1]) == "gpu_info") {
+        gpu_info();
+        return 0;
+    }
+
+    if (argc == 2 && std::string(argv[1]) == "-h") {
+        std::cerr << "Format: " << argv[0] << " <dataset_path> <number_of_blocks> <block_size> <sort_option>" << std::endl;
+        std::cerr << "sort_option: sort_yes or sort_no" << std::endl;
+        return 0;
+    }
+
     if (argc != 5) {
         std::cerr << "Usage: " << argv[0] << " <dataset_path> <number_of_blocks> <block_size> <sort_option>" << std::endl;
-        std::cerr << "Or use: " << argv[0] << " test" << std::endl;
+        std::cerr << "Usage 2: " << argv[0] << " run_tests" << std::endl;
+        std::cerr << "Usage 3: " << argv[0] << " gpu_info" << std::endl;
+        std::cerr << "Usage 4: " << argv[0] << " -h" << std::endl;
         return 1;
     }
 

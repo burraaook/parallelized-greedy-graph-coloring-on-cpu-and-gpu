@@ -27,7 +27,7 @@ void run_tests();
 int main(int argc, char* argv[]) 
 {
     if (argc < 2) {
-        std::cerr << "Usage: ./bitcolor_cpu <algorithm_name> <dataset_path> [num_threads]" << std::endl;
+        std::cerr << "Usage: ./bitcolor_cpu <algorithm_name> <dataset_path>" << std::endl;
         return 1;
     }
 
@@ -36,7 +36,19 @@ int main(int argc, char* argv[])
 
     if (algorithm == "run_tests") {
         run_tests();
-    } else if (algorithm == "basic_greedy") {
+    } 
+
+    // -h
+    else if (algorithm == "-h") {
+        std::cout << "Usage: ./bitcolor_cpu <algorithm_name> <dataset_path>" << std::endl;
+        std::cout << "Algorithms: basic_greedy, bitwise_greedy, p_bitcolor" << std::endl;
+        std::cout << "To run tests: ./bitcolor_cpu run_tests" << std::endl;
+        std::cout << "p_bitcolor options: " << std::endl;
+        std::cout << "[NUM_THREADS] [sort_option]" << std::endl;
+        std::cout << "sort_option: sort_yes, sort_no" << std::endl;
+    }
+
+    else if (algorithm == "basic_greedy") {
         if (argc != 3) {
             std::cerr << "Usage: ./bitcolor_cpu basic_greedy <dataset_path>" << std::endl;
             return 1;
