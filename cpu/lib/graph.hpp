@@ -87,6 +87,9 @@ private:
     // flag for termination
     bool terminate = false;
 
+    // sort option
+    bool sortOption = false;
+
     // initialize tables and queue
     // void initialize_tables();
 
@@ -104,7 +107,7 @@ private:
 
 public:
 
-    ParallelGraph(std::string filename, int num_threads);    
+    ParallelGraph(std::string filename, int num_threads, bool sortOption = false);
     // overloaded bit wise coloring
     std::map<int, std::bitset<512>> bitWiseColoring();
     // overloaded sort vertices by degree

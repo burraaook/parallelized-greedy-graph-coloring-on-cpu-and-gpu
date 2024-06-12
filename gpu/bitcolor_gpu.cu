@@ -308,13 +308,17 @@ void free_graph(Graph& graph) {
 
 // sort based on the degree of the nodes
 // smaller vertex id means higher degree
-void sort_adj_list(std::unordered_map<int, std::unordered_set<int>>& adj_list) 
+void sort_adj_list(std::unordered_map<int, std::unordered_set<int>>& adj_list, bool sortOption=true)
 {
     std::vector<std::pair<int, int>> degree;
     for (const auto& p : adj_list) {
         degree.push_back({p.first, p.second.size()});
     }
 
+    if (!sortOption)
+        return;
+
+    std::cerr << "\nSorting the graph" << std::endl;
     // sort based on the degree, smaller vertex id means higher degree
     // stable sort
     std::sort(degree.begin(), degree.end(), [](const std::pair<int, int>& a, const std::pair<int, int>& b) {
@@ -340,6 +344,8 @@ void sort_adj_list(std::unordered_map<int, std::unordered_set<int>>& adj_list)
     }
 
     adj_list = new_adj_list;
+
+    std::cerr << "Sorting done\n" << std::endl;
 }
 
 // example format
@@ -347,9 +353,9 @@ void sort_adj_list(std::unordered_map<int, std::unordered_set<int>>& adj_list)
 // 0 2
 // 1 2
 // 2 3
-void read_graph(const std::string& filename, Graph& graph) 
+void read_graph(const std::string& filename, Graph& graph, bool sortOption=true)
 {
-    std::cerr << "Reading graph from " << filename << std::endl;
+    std::cerr << "\nReading graph from file: " << filename << std::endl;
     std::ifstream file(filename);
     std::string line;
     std::unordered_map<int, std::unordered_set<int>> adj_list;
@@ -366,9 +372,33 @@ void read_graph(const std::string& filename, Graph& graph)
     }
     file.close();
 
-    std::cerr << "Sorting the graph" << std::endl;
     // sort the graph
-    sort_adj_list(adj_list);
+    sort_adj_list(adj_list, sortOption);
+        // check if it is starting from 0, if not make it start from 0
+    if (!sortOption && adj_list.find(0) == adj_list.end())
+    {
+        std::cerr << "Vertex 0 not found, remapping the vertices" << std::endl;
+        std::unordered_map<int, int> mapping;
+        int new_vertex_id = 0;
+        for (const auto& p : adj_list) {
+            mapping[p.first] = new_vertex_id;
+            new_vertex_id++;
+        }
+
+        // remap the vertices
+        std::unordered_map<int, std::unordered_set<int>> new_adj_list;
+        for (const auto& p : adj_list) {
+            int u = mapping[p.first];
+            for (int v : p.second) {
+                // map the vertex id
+                int new_v = mapping[v];
+                new_adj_list[u].insert(new_v);
+
+            }
+        }
+
+        adj_list = new_adj_list;
+    }
 
     graph.num_nodes = adj_list.size();
     graph.num_edges = num_edges;
@@ -383,7 +413,7 @@ void read_graph(const std::string& filename, Graph& graph)
         }
     }
 
-    std::cerr << "Graph read successfully" << std::endl;
+    std::cerr << "Reading done\n" << std::endl;
 }
 
 void print_graph(const Graph& graph) {
@@ -496,6 +526,8 @@ void gpu_process(const Graph& graph, int num_blocks = 30, int block_size = 1024,
 
     // measure time
     cudaEvent_t start, stop;
+    // launch the kernel
+    std::cerr << "Launching kernel" << std::endl;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start);
@@ -563,10 +595,6 @@ void gpu_process(const Graph& graph, int num_blocks = 30, int block_size = 1024,
     cudaMemset(warp_vertex_table, -1, num_warps * sizeof(int));
     cudaCheckError();
 
-    // launch the kernel
-    std::cerr << "Launching kernel" << std::endl;
-
-
     kernel<<<num_blocks, block_size>>>(offsets, adj_list, result, d_queue, conflict_table, warp_state, num_vertices, num_warps_device, terminate, warp_vertex_table);
     cudaCheckError();
     cudaDeviceSynchronize();
@@ -580,9 +608,11 @@ void gpu_process(const Graph& graph, int num_blocks = 30, int block_size = 1024,
 
 
     // check if there is a conflict
+    std::cerr << "\nChecking conflicts" << std::endl;
     int conflict = check_conflict(graph, result_host);
 
     // count the number of colors
+    std::cerr << "\nCounting colors" << std::endl;
     count_colors(graph, result_host);
 
     // free the memory
@@ -635,8 +665,8 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    if (argc != 4) {
-        std::cerr << "Usage: " << argv[0] << " <dataset_path> <number_of_blocks> <block_size>" << std::endl;
+    if (argc != 5) {
+        std::cerr << "Usage: " << argv[0] << " <dataset_path> <number_of_blocks> <block_size> <sort_option>" << std::endl;
         std::cerr << "Or use: " << argv[0] << " test" << std::endl;
         return 1;
     }
@@ -644,14 +674,17 @@ int main(int argc, char* argv[]) {
     std::string dataset_path = argv[1];
     int num_blocks = std::stoi(argv[2]);
     int block_size = std::stoi(argv[3]);
+    
+    // sort_option -> sort_yes or sort_no arguments
+    bool sort_option = std::string(argv[4]) == "sort_yes";
 
-    if (block_size % 32 != 0) {
-        std::cerr << "Error: block_size must be a multiple of 32." << std::endl;
+    if (block_size % 32 != 0 || block_size > 1024 || block_size < 64) {
+        std::cerr << "Error: block_size must be a multiple of 32, between 64 and 1024" << std::endl;
         return 1;
     }
 
     Graph graph;
-    read_graph(dataset_path, graph);
+    read_graph(dataset_path, graph, sort_option);
     gpu_process(graph, num_blocks, block_size, dataset_path);
     free_graph(graph);
 

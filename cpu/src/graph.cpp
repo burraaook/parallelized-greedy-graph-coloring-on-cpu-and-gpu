@@ -3,10 +3,11 @@
 
 int Graph::read_graph(std::string filename)
 {
+    std::cerr << "\nReading from file" << filename << std::endl;
     std::ifstream file(filename);
     if (!file.is_open()) {
         std::cerr << "Error: could not open file " << filename << std::endl;
-        return 1;
+        exit(1);
     }
 
     std::string line;
@@ -20,12 +21,14 @@ int Graph::read_graph(std::string filename)
         }
         if (!(iss >> v >> w)) {
             std::cerr << "Error: could not read line " << line << std::endl;
-            return 1;
+            exit(1);
         }
         this->addEdge(v, w);
     }
 
     file.close();
+
+    std::cerr << "Reading done\n" << std::endl;
     return 0;
 }
 
@@ -154,7 +157,8 @@ int Graph::countColorsBitset(std::map<int, std::bitset<512>> bitset_map) {
 }
 
 // parallel graph coloring 
-ParallelGraph::ParallelGraph(std::string filename, int num_threads) : Graph(filename), num_threads(num_threads) {
+ParallelGraph::ParallelGraph(std::string filename, int num_threads, bool SortOption) : Graph(filename), num_threads(num_threads) {
+    this->sortOption = SortOption;
     // sort vertices by degree
     sortVerticesByDegree();
 
@@ -182,18 +186,26 @@ ParallelGraph::ParallelGraph(std::string filename, int num_threads) : Graph(file
 
 // sort vertices by degree  
 void ParallelGraph::sortVerticesByDegree() {
-    // std::cerr << "Sorting vertices by degree" << std::endl;
+    std::cerr << "Preprocessing" << std::endl;
 
     // Step 1: Sort vertices by degree
     for (auto const& x : adj) {
         queue.push_back(x.first);
     }
-    // return;
 
+    if (sortOption == false)
+    {
+        // reverse the queue
+        std::reverse(queue.begin(), queue.end());
+        std::cerr << "Preprocessing done\n" << std::endl;
+        return;
+    }
+
+    std::cerr << "Sorting vertices by degree" << std::endl;
     std::sort(queue.begin(), queue.end(), [this](int a, int b) {
         return adj[a].size() > adj[b].size();
     });
-    // std::cerr << "Vertices sorted by degree" << std::endl;
+    std::cerr << "Vertices sorted by degree" << std::endl;
 
     // Step 2: Precompute vertex positions in the sorted queue
     std::map<int, int> vertex_positions;
@@ -214,6 +226,21 @@ void ParallelGraph::sortVerticesByDegree() {
         }
         updated_adj[vertex_positions[vertex]] = updated_neighbors;
     }
+
+    // Step 4: Write the updated adjacency list to a file
+    // std::ofstream file("sorted_.txt");
+
+    // for (auto const& vertex : queue) {
+    //     for (auto const& neighbor : adj[vertex]) {
+    //         if (vertex < neighbor) {
+    //             file << vertex_positions[vertex] << " " << vertex_positions[neighbor] << std::endl;
+    //         }
+    //     }
+    // }
+
+    // file.close();
+    // std::cerr << "written to file" << std::endl;
+
     // update queue indexes
     for (size_t i = 0; i < queue.size(); ++i) {
         queue[i] = vertex_positions[queue[i]];
@@ -226,6 +253,8 @@ void ParallelGraph::sortVerticesByDegree() {
 
     // Step 6: Update the adjacency list
     adj = updated_adj;
+
+    std::cerr << "Preprocessing done\n" << std::endl;
 }
 
 // parallel bit wise coloring
@@ -437,12 +466,12 @@ bool ParallelGraph::checkConflict() {
     }
     std::cerr << "Number of conflicts: " << num / 2 << std::endl;
     num = num / 2;
-    total_edges = total_edges / 2;
+    // total_edges = total_edges / 2;
     // ratio to total edges
-    double ratio = (double) num / total_edges;
-    ratio = ratio * 100;
-    std::cerr << "Total edges: " << total_edges << std::endl;
-    std::cerr << "Conflict ratio: " << ratio << "%" << std::endl;
+    // double ratio = (double) num / total_edges;
+    // ratio = ratio * 100;
+    // std::cerr << "Total edges: " << total_edges << std::endl;
+    // std::cerr << "Conflict ratio: " << ratio << "%" << std::endl;
     if (num > 0) {
         return true;
     }
@@ -458,7 +487,7 @@ bool Graph::checkConflict(std::map<int, std::bitset<512>> result) {
         std::list<int> neighbors = adj[vertex];
         std::bitset<512> color = result[vertex];
         for (auto const& y : neighbors) {
-            total_edges++;
+            // total_edges++;
             if (result[y] == color) {
                 num++;
             }
@@ -466,12 +495,12 @@ bool Graph::checkConflict(std::map<int, std::bitset<512>> result) {
     }
     std::cerr << "Number of conflicts: " << num / 2 << std::endl;
     num = num / 2;
-    total_edges = total_edges / 2;
+    // total_edges = total_edges / 2;
     // ratio to total edges
-    double ratio = (double) num / total_edges;
-    ratio = ratio * 100;
-    std::cerr << "Total edges: " << total_edges << std::endl;
-    std::cerr << "Conflict ratio: " << ratio << "%" << std::endl;
+    // double ratio = (double) num / total_edges;
+    // ratio = ratio * 100;
+    // std::cerr << "Total edges: " << total_edges << std::endl;
+    // std::cerr << "Conflict ratio: " << ratio << "%" << std::endl;
     if (num > 0) {
         return true;
     }
