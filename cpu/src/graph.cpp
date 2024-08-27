@@ -1,49 +1,65 @@
 #include "../lib/graph.hpp"
 
 
-int Graph::read_graph(std::string filename)
-{
-    std::cerr << "\nReading from file" << filename << std::endl;
-    std::ifstream file(filename);
-    if (!file.is_open()) {
+int Graph::read_graph(std::string filename) {
+    std::cerr << "\nReading from file " << filename << std::endl;
+    vertices.clear();
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    FILE* file = fopen(filename.c_str(), "r");
+    if (!file) {
         std::cerr << "Error: could not open file " << filename << std::endl;
         exit(1);
     }
 
-    std::string line;
-    while (std::getline(file, line)) {
-        int v, w;
-        std::istringstream iss(line);
+    char* buffer = nullptr;
+    size_t bufferSize = 0;
+    ssize_t lineLength;
 
-        // if line is %, #, or empty, skip
-        if (line[0] == '%' || line[0] == '#' || line.empty()) {
+    std::unordered_set<int> tempVertices;
+
+    while ((lineLength = getline(&buffer, &bufferSize, file)) != -1) {
+        if (buffer[0] == '%' || buffer[0] == '#' || buffer[0] == '\n') {
             continue;
         }
-        if (!(iss >> v >> w)) {
-            std::cerr << "Error: could not read line " << line << std::endl;
-            exit(1);
+
+        int v, w;
+        if (sscanf(buffer, "%d %d", &v, &w) == 2) {
+            adj[v].push_back(w);
+            adj[w].push_back(v);
+           // if not in the set add to vertices
+            if (tempVertices.find(v) == tempVertices.end()) {
+                vertices.push_back(v);
+            }
+            if (tempVertices.find(w) == tempVertices.end()) {
+                vertices.push_back(w);
+            }
+            tempVertices.insert(v);
+            tempVertices.insert(w);
         }
-        this->addEdge(v, w);
     }
 
-    file.close();
+    // sort vertices
+    std::sort(vertices.begin(), vertices.end());
+
+    free(buffer);
+    fclose(file);
 
     std::cerr << "Reading done\n" << std::endl;
     return 0;
 }
 
-std::map<int, int> Graph::basicGreedyColoring() {
+
+std::unordered_map<int, int> Graph::basicGreedyColoring() {
 
     // initalize color_array, and color_flag
-    std::map<int, int> color_array; // <vertex, color>
-    std::map<int, int> color_flag; // <color, flag> flag = 1 if color is used, flag = 0 if color is not used
+    std::unordered_map<int, int> color_array; // <vertex, color>
+    std::unordered_map<int, int> color_flag; // <color, flag> flag = 1 if color is used, flag = 0 if color is not used
 
     // iterate through all vertices
-    for (auto const& x : adj) {
+    for (auto const& vertex: vertices) {
         // stage 0: neighbor vertices traversal
-
-        // get the vertex
-        int vertex = x.first;
 
         // get the neighbors of the vertex
         std::list<int> *neighbors = &adj[vertex];
@@ -77,26 +93,20 @@ std::map<int, int> Graph::basicGreedyColoring() {
         color_array[vertex] = color;
     }
 
-    // set the number of colors used
-    num_color = color_flag.size();
-
     // return the color_array
     return color_array;
 }
 
-std::map<int, std::bitset<512>> Graph::bitWiseColoring() {
-    std::map<int, std::bitset<512>> color_array; // <vertex, color>
+std::unordered_map<int, std::bitset<BITSET_SIZE>> Graph::bitWiseColoring() {
+    std::unordered_map<int, std::bitset<BITSET_SIZE>> color_array; // <vertex, color>
 
     // color_state is used for checking if a color is used, represented with a bitset
-    std::bitset<512> color_state;
+    std::bitset<BITSET_SIZE> color_state;
     color_state.reset();
 
     // iterate through all vertices
-    for (auto const& x : adj) {
+    for (auto const& vertex: vertices) {
         // stage 0: neighbor vertices traversal
-
-        // get the vertex
-        int vertex = x.first;
 
         // get the neighbors of the vertex
         std::list<int> *neighbors = &adj[vertex];
@@ -108,14 +118,12 @@ std::map<int, std::bitset<512>> Graph::bitWiseColoring() {
             // int neighbor = y;
 
             // get color of neighbor
-            // std::bitset<512> neighbor_color = color_array[neighbor];
-            // color_state |= neighbor_color;
             color_state |= color_array[y];
         }
         // stage 1: color traversal
         // if color state = 0, then color = 1
         // else, color = (~color_state) & (color_state + 1'b1)
-        std::bitset<512> color;
+        std::bitset<BITSET_SIZE> color;
         // std::cout << "color_state: " << color_state << "\n";
         if (color_state == 0) {
             color = 1;
@@ -133,7 +141,7 @@ std::map<int, std::bitset<512>> Graph::bitWiseColoring() {
     return color_array;
 }
 
-std::bitset<512> Graph::increment_bitset(std::bitset<512> bitset) {
+std::bitset<BITSET_SIZE> Graph::increment_bitset(std::bitset<BITSET_SIZE> bitset) {
     
     for (std::size_t i = 0; i < bitset.size(); i++) {
         if (bitset[i] == 0) {
@@ -146,8 +154,19 @@ std::bitset<512> Graph::increment_bitset(std::bitset<512> bitset) {
     return bitset;
 }
 
-int Graph::countColorsBitset(std::map<int, std::bitset<512>> bitset_map) {
-    std::set<std::string> colors;
+int Graph::countColors(std::unordered_map<int, int> color_array) {
+
+    std::unordered_set<int> colors;
+    for (auto const& x : color_array) {
+        colors.insert(x.second);
+    }
+
+    this->num_color = colors.size();
+    return this->num_color;
+}
+int Graph::countColorsBitset(std::unordered_map<int, std::bitset<BITSET_SIZE>> bitset_map) {
+
+    std::unordered_set<std::string> colors;
     for (auto const& x : bitset_map) {
         colors.insert(x.second.to_string());
     }
@@ -155,7 +174,6 @@ int Graph::countColorsBitset(std::map<int, std::bitset<512>> bitset_map) {
     this->num_color = colors.size();
     return this->num_color;
 }
-
 // parallel graph coloring 
 ParallelGraph::ParallelGraph(std::string filename, int num_threads, bool SortOption) : Graph(filename), num_threads(num_threads) {
     this->sortOption = SortOption;
@@ -165,57 +183,44 @@ ParallelGraph::ParallelGraph(std::string filename, int num_threads, bool SortOpt
     // initialize threads
     threads.resize(num_threads);
 
-    // fill result with empty bitset
-    for (auto const& x : adj) {
-        result[x.first].reset();
-        dct.insert(x.first);
-        result[x.first] = 0;
+    // preallocate result and dct
+    result.reserve(adj.size());
+    dct.reserve(adj.size());
+
+    // initalize result and dct in a single loop
+    for (auto const& x : vertices) {
+        result[x].reset();
+        dct.insert(x);
     }
-
-    // initialize dct
-    for (auto const& x : adj) {
-        dct.insert(x.first);
-
-        // set all vertices to valid, and uncolored
-        dct.setValid(x.first);
-        // dct.setUncolored(x.first);
-    }
-
-    // std::cerr << "ParallelGraph initialized" << std::endl;
 }
 
 // sort vertices by degree  
 void ParallelGraph::sortVerticesByDegree() {
     std::cerr << "Preprocessing" << std::endl;
 
-    // Step 1: Sort vertices by degree
-    for (auto const& x : adj) {
-        queue.push_back(x.first);
-    }
-
     if (sortOption == false)
     {
         // reverse the queue
-        std::reverse(queue.begin(), queue.end());
+        std::reverse(vertices.begin(), vertices.end());
         std::cerr << "Preprocessing done\n" << std::endl;
         return;
     }
 
     std::cerr << "Sorting vertices by degree" << std::endl;
-    std::sort(queue.begin(), queue.end(), [this](int a, int b) {
+    std::sort(vertices.begin(), vertices.end(), [this](int a, int b) {
         return adj[a].size() > adj[b].size();
     });
     std::cerr << "Vertices sorted by degree" << std::endl;
 
     // Step 2: Precompute vertex positions in the sorted queue
     std::map<int, int> vertex_positions;
-    for (size_t i = 0; i < queue.size(); ++i) {
-        vertex_positions[queue[i]] = i;
+    for (size_t i = 0; i < vertices.size(); ++i) {
+        vertex_positions[vertices[i]] = i;
     }
 
     // Step 3: Update adjacency list indexes
-    std::map<int, std::list<int>> updated_adj;
-    for (auto const& vertex : queue) {
+    std::unordered_map<int, std::list<int>> updated_adj;
+    for (auto const& vertex : vertices) {
         // Step 4: Update neighbor lists using precomputed positions
         std::list<int> updated_neighbors;
         for (auto const& neighbor : adj[vertex]) {
@@ -226,30 +231,15 @@ void ParallelGraph::sortVerticesByDegree() {
         }
         updated_adj[vertex_positions[vertex]] = updated_neighbors;
     }
-
-    // Step 4: Write the updated adjacency list to a file
-    // std::ofstream file("sorted_.txt");
-
-    // for (auto const& vertex : queue) {
-    //     for (auto const& neighbor : adj[vertex]) {
-    //         if (vertex < neighbor) {
-    //             file << vertex_positions[vertex] << " " << vertex_positions[neighbor] << std::endl;
-    //         }
-    //     }
-    // }
-
-    // file.close();
-    // std::cerr << "written to file" << std::endl;
-
     // update queue indexes
-    for (size_t i = 0; i < queue.size(); ++i) {
-        queue[i] = vertex_positions[queue[i]];
+    for (size_t i = 0; i < vertices.size(); ++i) {
+        vertices[i] = vertex_positions[vertices[i]];
     }
     
     // std::cerr << "Adjacency list updated" << std::endl;
 
     // Step 5: Reverse the queue, because algorithm uses pop_back
-    std::reverse(queue.begin(), queue.end());
+    std::reverse(vertices.begin(), vertices.end());
 
     // Step 6: Update the adjacency list
     adj = updated_adj;
@@ -258,7 +248,7 @@ void ParallelGraph::sortVerticesByDegree() {
 }
 
 // parallel bit wise coloring
-std::map<int, std::bitset<512>> ParallelGraph::bitWiseColoring() {
+std::unordered_map<int, std::bitset<BITSET_SIZE>> ParallelGraph::bitWiseColoring() {
 
     // start master thread
     master_thread();
@@ -279,13 +269,13 @@ void ParallelGraph::master_thread() {
         threads[i] = std::thread(&ParallelGraph::processing_thread, this, i);
 
         // assign to thread table
-        thread_table[i] = {queue[i], IDLE};
+        thread_table[i] = {vertices[i], IDLE};
     }
 
     // assign tasks to threads till all vertices are colored
     while (true) {
-        // check if all vertices are colored. check fifo queue
-        if (queue.empty()) {
+        // check if all vertices are colored. check fifo vertices
+        if (vertices.empty()) {
             // set terminate flag
             
             // wait for all threads to become idle
@@ -307,10 +297,10 @@ void ParallelGraph::master_thread() {
             // if the thread is not running, assign a task
             if (status == IDLE) {
 
-                if (queue.empty()) {
+                if (vertices.empty()) {
                     break;
                 }
-                vertex = queue.back();
+                vertex = vertices.back();
 
                 // set dct to invalid
                 dct.setInvalid(vertex);
@@ -323,7 +313,7 @@ void ParallelGraph::master_thread() {
                 thread_table[thread_id] = {vertex, RUNNING};
 
                 // remove the vertex from the queue
-                queue.pop_back();
+                vertices.pop_back();
             }
         }        
     }
@@ -358,25 +348,11 @@ void ParallelGraph::processing_thread(int thread_id) {
     // std::cerr << "Thread " << thread_id << " terminated" << std::endl;
 }
 
-int bit2num (std::bitset<512> bitset) {
-    int num = 0;
-    // start from left first 1 is the number for that bitset
-    for (int i = 512; i >= 0; i--) {
-        if (bitset[i] == 1) {
-            num = i;
-            return num;
-        }
-    }
-
-    return num;
-}
-
-
 // worker function, address of neighbors
 void ParallelGraph::worker(int thread_id, int vertex, std::list<int> *neighbors) { 
 
     // color_state is used for checking if a color is used, represented with a bitset
-    std::bitset<512> color_state = 0;
+    std::bitset<BITSET_SIZE> color_state = 0;
     color_state.reset();
 
     // invalid vertices linked list
@@ -433,7 +409,7 @@ void ParallelGraph::worker(int thread_id, int vertex, std::list<int> *neighbors)
     // set state as RUNNING
     // thread_table[thread_id].second = RUNNING;
 
-    std::bitset<512> color;
+    std::bitset<BITSET_SIZE> color;
     if (color_state == 0) {
         color = 1;
     } 
@@ -456,7 +432,7 @@ bool ParallelGraph::checkConflict() {
     for (auto const& x : result) {
         int vertex = x.first;
         std::list<int> neighbors = adj[vertex];
-        std::bitset<512> color = result[vertex];
+        std::bitset<BITSET_SIZE> color = result[vertex];
         for (auto const& y : neighbors) {
             total_edges++;
             if (result[y] == color) {
@@ -466,12 +442,6 @@ bool ParallelGraph::checkConflict() {
     }
     std::cerr << "Number of conflicts: " << num / 2 << std::endl;
     num = num / 2;
-    // total_edges = total_edges / 2;
-    // ratio to total edges
-    // double ratio = (double) num / total_edges;
-    // ratio = ratio * 100;
-    // std::cerr << "Total edges: " << total_edges << std::endl;
-    // std::cerr << "Conflict ratio: " << ratio << "%" << std::endl;
     if (num > 0) {
         return true;
     }
@@ -479,13 +449,13 @@ bool ParallelGraph::checkConflict() {
 }
 
 // check conflict
-bool Graph::checkConflict(std::map<int, std::bitset<512>> result) {
+bool Graph::checkConflict(std::unordered_map<int, std::bitset<BITSET_SIZE>> result) {
     int num = 0;
     int total_edges = 0;
     for (auto const& x : result) {
         int vertex = x.first;
         std::list<int> neighbors = adj[vertex];
-        std::bitset<512> color = result[vertex];
+        std::bitset<BITSET_SIZE> color = result[vertex];
         for (auto const& y : neighbors) {
             // total_edges++;
             if (result[y] == color) {
@@ -495,12 +465,6 @@ bool Graph::checkConflict(std::map<int, std::bitset<512>> result) {
     }
     std::cerr << "Number of conflicts: " << num / 2 << std::endl;
     num = num / 2;
-    // total_edges = total_edges / 2;
-    // ratio to total edges
-    // double ratio = (double) num / total_edges;
-    // ratio = ratio * 100;
-    // std::cerr << "Total edges: " << total_edges << std::endl;
-    // std::cerr << "Conflict ratio: " << ratio << "%" << std::endl;
     if (num > 0) {
         return true;
     }

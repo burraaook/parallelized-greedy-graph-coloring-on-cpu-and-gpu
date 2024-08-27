@@ -8,6 +8,8 @@
 #include <fstream>
 #include <string>
 #include <map>
+#include <unordered_map>
+#include <unordered_set>
 #include <sstream>
 #include <set>
 #include <bitset>
@@ -15,12 +17,10 @@
 #include <thread>
 #include <queue>
 #include <functional>
-#include <mutex>
-#include <condition_variable>
-// lock
-#include <shared_mutex>
 
 #include "dct.hpp"
+
+#define BITSET_SIZE 512
 
 // graph with adjacency list
 class Graph 
@@ -28,7 +28,8 @@ class Graph
 protected:
 
     // adjacency list
-    std::map<int, std::list<int>> adj;
+    std::unordered_map<int, std::list<int>> adj;
+    std::vector<int> vertices;
     int num_color = 0;
 public:
     Graph(std::string filename) { read_graph(filename); }
@@ -36,15 +37,17 @@ public:
     int read_graph(std::string filename);
     int getNumVertices() { return adj.size(); }
     std::list<int> getNeighbors(int v) { return adj[v]; }
-    std::map<int, std::list<int>> getAdj() { return adj; }
-    bool checkConflict(std::map<int, std::bitset<512>> result);
+    std::unordered_map<int, std::list<int>> getAdj() { return adj; }
+    bool checkConflict(std::unordered_map<int, std::bitset<BITSET_SIZE>> result);
 
-    std::map<int, int> basicGreedyColoring();
-    int countColorsBitset(std::map<int, std::bitset<512>> bitset_map);
-    std::map<int, std::bitset<512>> bitWiseColoring();
-    std::bitset<512> increment_bitset(std::bitset<512> bitset);
+    std::unordered_map<int, int> basicGreedyColoring();
+    int countColorsBitset(std::unordered_map<int, std::bitset<BITSET_SIZE>> bitset_map);
+    std::unordered_map<int, std::bitset<BITSET_SIZE>> bitWiseColoring();
+    std::bitset<BITSET_SIZE> increment_bitset(std::bitset<BITSET_SIZE> bitset);
     int getNumColor() { return num_color; }
-    // void sortVerticesByDegree();
+
+    // count colors
+    int countColors(std::unordered_map<int, int> color_array);
 
     ~Graph() { adj.clear(); }
 };
@@ -63,7 +66,7 @@ class ParallelGraph : public Graph
 {
 private:
     // result
-    std::map<int, std::bitset<512>> result;
+    std::unordered_map<int, std::bitset<BITSET_SIZE>> result;
 
     // number of threads
     int num_threads;
@@ -72,7 +75,7 @@ private:
     std::vector<std::thread> threads;
 
     // FIFO, tasks
-    std::vector<int> queue;
+    // std::vector<int> queue;
 
     // data conflict table
     DataConflictTable dct;
@@ -81,8 +84,7 @@ private:
     std::map<int, std::pair<int, ThreadStatus>> thread_table;
 
     // vertex thread table: <vertex_id, thread_id>
-    std::map<int, int> vertex_thread_table;
-
+    std::unordered_map<int, int> vertex_thread_table;
 
     // flag for termination
     bool terminate = false;
@@ -102,14 +104,11 @@ private:
     // worker function: thread_id, vertex_id, neighbors
     void worker(int thread_id, int vertex, std::list<int> *neighbors);
 
-    // mutex
-    std::mutex mtx;
-
 public:
 
     ParallelGraph(std::string filename, int num_threads, bool sortOption = false);
     // overloaded bit wise coloring
-    std::map<int, std::bitset<512>> bitWiseColoring();
+    std::unordered_map<int, std::bitset<BITSET_SIZE>> bitWiseColoring();
     // overloaded sort vertices by degree
     void sortVerticesByDegree();
 

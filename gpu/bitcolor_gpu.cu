@@ -353,10 +353,16 @@ void sort_adj_list(std::unordered_map<int, std::unordered_set<int>>& adj_list, b
 // 0 2
 // 1 2
 // 2 3
-void read_graph(const std::string& filename, Graph& graph, bool sortOption=true)
+void read_graph_with_sorting(const std::string& filename, Graph& graph, bool sortOption=true)
 {
     std::cerr << "\nReading graph from file: " << filename << std::endl;
     std::ifstream file(filename);
+
+    if (!file.is_open()) {
+        std::cerr << "File not exist. Terminating..." << std::endl;
+        exit(1);
+    }
+
     std::string line;
     std::unordered_map<int, std::unordered_set<int>> adj_list;
     int num_edges = 0;
@@ -411,6 +417,58 @@ void read_graph(const std::string& filename, Graph& graph, bool sortOption=true)
         for (int v : adj_list[i]) {
             graph.adj_list[offset++] = v;
         }
+    }
+
+    std::cerr << "Reading done\n" << std::endl;
+}
+
+void read_graph(const std::string& filename, Graph& graph, bool sortOption=true)
+{
+    if (sortOption)
+    {
+        read_graph_with_sorting(filename, graph, sortOption);
+        return;
+    }
+    std::ifstream file(filename);
+    std::string line;
+
+    std::cerr << "\nReading graph from file: " << filename << std::endl;
+
+    if (!file.is_open()) {
+        std::cerr << "File not exist. Terminating..." << std::endl;
+        exit(1);
+    }
+
+    // Use vectors for dynamic sizing, and then copy to arrays.
+    std::unordered_map<int, std::vector<int>> adj_list;
+    int num_edges = 0;
+
+    // First pass: read edges and construct the adjacency list.
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        int u, v;
+        if (!(iss >> u >> v)) {
+            break;
+        }
+        adj_list[u].push_back(v);
+        adj_list[v].push_back(u);
+        num_edges += 2;
+    }
+    file.close();
+
+    graph.num_nodes = adj_list.size();
+    graph.num_edges = num_edges;
+    graph.offsets = new int[graph.num_nodes + 1];
+    graph.adj_list = new int[num_edges];
+
+    // Second pass: fill the graph structures
+    int offset = 0;
+    graph.offsets[0] = 0;
+
+    for (int i = 0; i < graph.num_nodes; ++i) {
+        graph.offsets[i + 1] = graph.offsets[i] + adj_list[i].size();
+        std::copy(adj_list[i].begin(), adj_list[i].end(), graph.adj_list + offset);
+        offset += adj_list[i].size();
     }
 
     std::cerr << "Reading done\n" << std::endl;
@@ -486,8 +544,9 @@ int check_conflict(const Graph& graph, const BitSet* result)
     int num_conflicts = 0;
     for (int i = 0; i < graph.num_nodes; ++i) {
         for (int j = graph.offsets[i]; j < graph.offsets[i + 1]; ++j) {
+            // convert the bitset to string
             if (compare_bitset(result[i], result[graph.adj_list[j]])) {
-                // std::cerr << "Conflict: " << i << " " << graph.adj_list[j] << std::endl;
+                std::cerr << "Conflict: " << i << " " << graph.adj_list[j] << std::endl;
                 num_conflicts++;
             }
         }
@@ -496,14 +555,21 @@ int check_conflict(const Graph& graph, const BitSet* result)
     return num_conflicts;
 }
 
-void count_colors(const Graph& graph, const BitSet* result) 
+void count_colors(const Graph& graph, const BitSet* result)
 {
     std::unordered_set<std::string> colors;
     for (int i = 0; i < graph.num_nodes; ++i) {
-        colors.insert(bitset_get_str(result[i]));
+        // convert each uint32_t to string and concatenate
+        std::string color;
+        for (int j = 0; j < MAX_BITS / BITS_PER_WORD; ++j) {
+            color += std::to_string(result[i].bits[j]);
+        }
+        colors.insert(color);
     }
-    std::cerr << "Number of colors: " << colors.size() << std::endl;
+    int color_num = colors.size();
+    std::cerr << "Number of colors: " << color_num << std::endl;
 }
+
 void gpu_process(const Graph& graph, int num_blocks = 30, int block_size = 1024, std::string dataset_name = "dataset")
 {
     // allocate the result on the device
@@ -639,9 +705,25 @@ void gpu_process(const Graph& graph, int num_blocks = 30, int block_size = 1024,
 
 }
 void run_test() {
-    std::vector<std::string> filenames = {"../datasets/EF.txt", "../datasets/CD.txt", "../datasets/RC.txt", 
-                                         "../datasets/CA.txt", "../datasets/RP.txt", "../datasets/RT.txt",
-                                         "../datasets/CL.txt"};
+    // std::vector<std::string> filenames = {
+    //                                     "datasets/EF.txt", 
+    //                                     // "datasets/CD.txt", 
+    //                                     // "datasets/RC.txt", 
+    //                                     //  "datasets/CA.txt", 
+    //                                     //  "datasets/RP.txt", 
+    //                                     //  "datasets/RT.txt",
+    //                                      "datasets/CL.txt"
+    //                                      };
+
+    std::vector<std::string> filenames = {
+                                        "datasets/sorted_EF.txt", 
+                                        // "datasets/sorted_CD.txt", 
+                                        // "datasets/sorted_RC.txt", 
+                                         "datasets/sorted_CA.txt", 
+                                        //  "datasets/sorted_RP.txt", 
+                                        //  "datasets/sorted_RT.txt",
+                                        //  "datasets/sorted_CL.txt"
+                                         };
 
     std::vector<int> num_blocks = {1, 8, 16, 30, 1, 1, 1};
     std::vector<int> block_size = {1024, 1024, 1024, 1024, 512, 256, 128};
