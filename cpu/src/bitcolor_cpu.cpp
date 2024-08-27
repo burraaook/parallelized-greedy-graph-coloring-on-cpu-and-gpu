@@ -37,6 +37,9 @@ int main(int argc, char* argv[])
 
     std::string algorithm = argv[1];
 
+    // create output directory if it does not exist
+    system("mkdir -p output");
+
     if (algorithm == "run_tests") {
         run_tests();
     } 
